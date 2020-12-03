@@ -2,7 +2,7 @@
 import re
 from dataclasses import dataclass
 
-with open('./2.input.txt') as f:
+with open('./input.txt') as f:
     lines = [x.strip() for x in f.readlines()]
 
 pattern = re.compile(r'^(\d+)-(\d+) (\w): (.*)$')
