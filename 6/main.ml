@@ -16,12 +16,10 @@ let all_chars_set =
 
 let () =
   List.map (parse input) ~f:Char.Set.union_list
-  |> List.map ~f:Char.Set.length
-  |> List.fold ~init:0 ~f:( + )
+  |> List.map ~f:Set.length |> List.fold ~init:0 ~f:( + )
   |> Printf.printf "part 1: %d\n";
 
   List.map (parse input) ~f:(fun l ->
-      List.fold l ~init:all_chars_set ~f:Char.Set.inter)
-  |> List.map ~f:Char.Set.length
-  |> List.fold ~init:0 ~f:( + )
+      List.fold l ~init:all_chars_set ~f:Set.inter)
+  |> List.map ~f:Set.length |> List.fold ~init:0 ~f:( + )
   |> Printf.printf "part 1: %d\n"
