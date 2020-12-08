@@ -1,0 +1,4 @@
+(executable
+ (name main)
+ (libraries core re2)
+ (preprocess (pps ppx_let)))
