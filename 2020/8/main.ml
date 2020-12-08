@@ -20,19 +20,18 @@ let rec walk ?(acc = 0) ?(pos = 0) ?(visited = Int.Set.empty) instructions =
     | "acc", n -> walk instructions ~pos:(pos + 1) ~acc:(acc + n) ~visited
     | _ -> failwith "invalid instruction"
 
+let copy_and_set arr idx value =
+  let copy = Array.copy arr in
+  copy.(idx) <- value;
+  copy
+
 let candidates : (string * int) array -> (string * int) array Sequence.t =
  fun instructions ->
   Sequence.range 0 (Array.length instructions)
   |> Sequence.map ~f:(fun idx ->
          match instructions.(idx) with
-         | "nop", n ->
-             let copy = Array.copy instructions in
-             copy.(idx) <- ("jmp", n);
-             Some copy
-         | "jmp", n ->
-             let copy = Array.copy instructions in
-             copy.(idx) <- ("nop", n);
-             Some copy
+         | "nop", n -> Some (copy_and_set instructions idx ("jmp", n))
+         | "jmp", n -> Some (copy_and_set instructions idx ("nop", n))
          | _ -> None)
   |> Sequence.filter_opt
 
