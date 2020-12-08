@@ -24,12 +24,13 @@ let candidates : (string * int) array -> (string * int) array Sequence.t =
  fun instructions ->
   Sequence.range 0 (Array.length instructions)
   |> Sequence.map ~f:(fun idx ->
-         let copy = Array.copy instructions in
          match instructions.(idx) with
          | "nop", n ->
+             let copy = Array.copy instructions in
              copy.(idx) <- ("jmp", n);
              Some copy
          | "jmp", n ->
+             let copy = Array.copy instructions in
              copy.(idx) <- ("nop", n);
              Some copy
          | _ -> None)
@@ -45,5 +46,5 @@ let () =
         match walk candidate with `Finished n -> Some n | _ -> None)
   in
   match part2_result with
-  | Some n -> Printf.printf "part 2 result: %d" n
+  | Some n -> Printf.printf "part 2 result: %d\n" n
   | None -> failwith "no result for part 2!"
