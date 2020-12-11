@@ -17,46 +17,34 @@ let initial_state =
 let directions =
   [ (-1, -1); (0, -1); (1, -1); (-1, 0); (1, 0); (-1, 1); (0, 1); (1, 1) ]
 
-let part1_step state =
-  Coord.Map.mapi state ~f:(fun ~key:(x, y) ~data ->
-      let cnt =
-        List.map directions ~f:(fun (dx, dy) ->
-            Coord.Map.find state (x + dx, y + dy) |> Option.value ~default:0)
-        |> List.fold ~init:0 ~f:( + )
-      in
+let neighbour_seat_in_direction state (x, y) (dx, dy) =
+  Coord.Map.find state (x + dx, y + dy)
+
+let rec seat_in_direction state (x, y) (dx, dy) =
+  if x < 0 || x >= width || y < 0 || y >= height then None
+  else
+    match Coord.Map.find state (x + dx, y + dy) with
+    | Some x -> Some x
+    | None -> seat_in_direction state (x + dx, y + dy) (dx, dy)
+
+let step ~check ~limit state =
+  Coord.Map.mapi state ~f:(fun ~key:pos ~data ->
+      let seats = List.filter_map directions ~f:(check state pos) in
+      let cnt = List.fold seats ~init:0 ~f:( + ) in
       if data = 0 && cnt = 0 then 1
-      else if data = 1 && cnt >= 4 then 0
+      else if data = 1 && cnt >= limit then 0
       else data)
 
-let part2_step state =
-  let rec seat_in_direction (x, y) (dx, dy) =
-    if x < 0 || x >= width || y < 0 || y >= height then None
-    else
-      match Coord.Map.find state (x + dx, y + dy) with
-      | Some x -> Some x
-      | None -> seat_in_direction (x + dx, y + dy) (dx, dy)
-  in
-
-  Coord.Map.mapi state ~f:(fun ~key:(x, y) ~data ->
-      let cnt =
-        List.map directions ~f:(fun dir ->
-            seat_in_direction (x, y) dir |> Option.value ~default:0)
-        |> List.fold ~init:0 ~f:( + )
-      in
-      if data = 0 && cnt = 0 then 1
-      else if data = 1 && cnt >= 5 then 0
-      else data)
-
-let rec step_until_stable ~step state =
-  let next_state = step state in
-  if Coord.Map.equal equal state next_state then state
-  else step_until_stable ~step next_state
+let rec step_until_stable ~check ~limit state =
+  let next_state = step ~check ~limit state in
+  let stable = Coord.Map.equal equal state next_state in
+  if stable then state else step_until_stable ~check ~limit next_state
 
 let () =
-  step_until_stable ~step:part1_step initial_state
+  step_until_stable initial_state ~limit:4 ~check:neighbour_seat_in_direction
   |> Coord.Map.count ~f:(fun x -> x = 1)
   |> Printf.printf "part 1 result: %d\n";
 
-  step_until_stable ~step:part2_step initial_state
+  step_until_stable initial_state ~limit:5 ~check:seat_in_direction
   |> Coord.Map.count ~f:(fun x -> x = 1)
   |> Printf.printf "part 2 result: %d\n"
