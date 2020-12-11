@@ -1,6 +1,7 @@
 open Core
 open Async
 open Async.Print
+open Deferred.Let_syntax
 
 type t = {
   memory : int array;
@@ -101,8 +102,7 @@ let rec run : t -> unit Deferred.t =
       memory.(dst) <- src1 * src2;
       run { state with pc = pc + 4 }
   | 3 -> (
-      let (* input *)
-      open Deferred.Let_syntax in
+      (* input *)
       let dst = decode_dst state in
       match%bind Pipe.read state.input_reader with
       | `Ok x ->
@@ -111,7 +111,6 @@ let rec run : t -> unit Deferred.t =
       | `Eof -> failwith "input pipe unexpectedly closed!" )
   | 4 ->
       (* output *)
-      let open Deferred.Let_syntax in
       let x = decode_src state in
       let%bind () = Pipe.write state.output_writer x in
       run { state with pc = pc + 2 }
@@ -137,11 +136,12 @@ let rec run : t -> unit Deferred.t =
       run { state with pc = pc + 4 }
   | 9 ->
       (* adjust relative base *)
-      run { state with pc = pc + 2; base = state.base + decode_src state }
+      let base = state.base + decode_src state in
+      run { state with base; pc = pc + 2 }
   | 99 ->
       Pipe.close_read state.input_reader;
       Pipe.close state.output_writer;
       Deferred.unit
   | _ ->
       printf "invalid opcode %d" memory.(pc);
-      Async.Deferred.unit
+      Deferred.unit
