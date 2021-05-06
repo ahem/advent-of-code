@@ -26,12 +26,10 @@ fn main() {
 
     let part_2_result = values.iter().fold(0, |acc, (w, l, h)| {
         let a = w.min(l).min(h);
-        let b = if a == w {
-            l.min(h)
-        } else if a == l {
-            w.min(h)
-        } else {
-            w.min(l)
+        let b = match a {
+            _ if a == w => l.min(h),
+            _ if a == l => w.min(h),
+            _ => w.min(l),
         };
         return acc + 2 * a + 2 * b + w * l * h;
     });
