@@ -8,4 +8,9 @@ edition = "2018"
 name = "day_1"
 path = "src/1/day_1.rs"
 
+[[bin]]
+name = "day_2"
+path = "src/2/day_2.rs"
+
 [dependencies]
+regex = "1.4.5"
