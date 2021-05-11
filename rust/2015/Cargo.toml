@@ -20,6 +20,12 @@ path = "src/3/day_3.rs"
 name = "day_4"
 path = "src/4/day_4.rs"
 
+[[bin]]
+name = "day_5"
+path = "src/5/day_5.rs"
+
 [dependencies]
+fancy-regex = "0.5.0"
+lazy_static = "1.4.0"
 md5 = "0.7.0"
 regex = "1.4.5"
