@@ -1,0 +1,13 @@
+number = { ('0'..'9')+ }
+wire = { ('a'..'z')+ }
+signal = { wire | number }
+or_expr = { signal ~ "OR" ~ signal }
+and_expr = { signal ~ "AND" ~ signal }
+lshift_expr = { wire ~ "LSHIFT" ~ number }
+rshift_expr = { wire ~ "RSHIFT" ~ number }
+not_expr = { "NOT " ~ wire }
+source = _{ (not_expr | and_expr | or_expr | lshift_expr | rshift_expr | number | wire) }
+instruction = { source ~ "->" ~ wire }
+file = { SOI ~ (instruction ~ NEWLINE)* ~ EOI }
+
+WHITESPACE = _{ " "+ }
