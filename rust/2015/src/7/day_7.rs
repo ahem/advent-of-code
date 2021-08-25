@@ -15,6 +15,18 @@ enum Value {
     Number(u16),
 }
 
+impl Value {
+    fn parse(pair: pest::iterators::Pair<Rule>) -> Value {
+        assert!(pair.as_rule() == Rule::value);
+        let token = pair.into_inner().next().unwrap();
+        match token.as_rule() {
+            Rule::ident => Value::Identifier(token.as_str().to_owned()),
+            Rule::number => Value::Number(token.as_str().parse::<u16>().unwrap()),
+            _ => unreachable!(),
+        }
+    }
+}
+
 impl Into<Expression> for Value {
     fn into(self) -> Expression {
         match self {
@@ -35,74 +47,87 @@ enum Expression {
     Number(u16),
 }
 
-#[derive(Debug)]
-struct Statements(std::collections::HashMap<String, Expression>);
-
-fn parse_value(pair: pest::iterators::Pair<Rule>) -> Value {
-    assert!(pair.as_rule() == Rule::value);
-    let token = pair.into_inner().next().unwrap();
-    match token.as_rule() {
-        Rule::ident => Value::Identifier(token.as_str().to_owned()),
-        Rule::number => Value::Number(token.as_str().parse::<u16>().unwrap()),
-        _ => unreachable!(),
+impl Expression {
+    fn parse(pair: pest::iterators::Pair<Rule>) -> Expression {
+        assert!(pair.as_rule() == Rule::expr);
+        let inner = pair.into_inner().next().unwrap();
+        return match inner.as_rule() {
+            Rule::unary_expr => {
+                let mut tokens = inner.into_inner();
+                let operator = tokens.next().unwrap().as_str();
+                let value = Value::parse(tokens.next().unwrap());
+                assert!(operator == "NOT");
+                return Expression::Not(value);
+            }
+            Rule::binary_expr => {
+                let mut tokens = inner.into_inner();
+                let left = Value::parse(tokens.next().unwrap());
+                let operator = tokens.next().unwrap().as_str();
+                let right = Value::parse(tokens.next().unwrap());
+                return match operator {
+                    "OR" => Expression::Or(left, right),
+                    "AND" => Expression::And(left, right),
+                    "LSHIFT" => Expression::LShift(left, right),
+                    "RSHIFT" => Expression::RShift(left, right),
+                    _ => unreachable!("invalid operator!"),
+                };
+            }
+            Rule::value => Value::parse(inner).into(),
+            _ => unreachable!("unexpected expression type"),
+        };
     }
 }
 
-fn parse_unary(pair: pest::iterators::Pair<Rule>) -> Expression {
-    assert!(pair.as_rule() == Rule::unary_expr);
-    let mut tokens = pair.into_inner();
-    let operator = tokens.next().unwrap().as_str();
-    let value = parse_value(tokens.next().unwrap());
-    assert!(operator == "NOT");
-    return Expression::Not(value);
-}
+#[derive(Debug)]
+struct Statements(std::collections::HashMap<String, Expression>);
 
-fn parse_binary(pair: pest::iterators::Pair<Rule>) -> Expression {
-    assert!(pair.as_rule() == Rule::binary_expr);
-    let mut tokens = pair.into_inner();
-    let left = parse_value(tokens.next().unwrap());
-    let operator = tokens.next().unwrap().as_str();
-    let right = parse_value(tokens.next().unwrap());
-    return match operator {
-        "OR" => Expression::Or(left, right),
-        "AND" => Expression::And(left, right),
-        "LSHIFT" => Expression::LShift(left, right),
-        "RSHIFT" => Expression::RShift(left, right),
-        _ => unreachable!("invalid operator!"),
-    };
-}
+impl Statements {
+    fn parse(pair: pest::iterators::Pair<Rule>) -> Statements {
+        let mut statements: std::collections::HashMap<String, Expression> =
+            std::collections::HashMap::new();
 
-fn parse_expression(pair: pest::iterators::Pair<Rule>) -> Expression {
-    assert!(pair.as_rule() == Rule::expr);
-    let inner = pair.into_inner().next().unwrap();
-    return match inner.as_rule() {
-        Rule::unary_expr => parse_unary(inner),
-        Rule::binary_expr => parse_binary(inner),
-        Rule::value => parse_value(inner).into(),
-        _ => unreachable!("unexpected expression type"),
-    };
-}
+        for statement in pair.into_inner() {
+            match statement.as_rule() {
+                Rule::statement => {
+                    let mut tokens = statement.into_inner();
+                    let expr = Expression::parse(tokens.next().unwrap());
+                    let identifier = tokens.next().unwrap().as_str().to_owned();
+                    statements.insert(identifier, expr);
+                }
+                Rule::EOI => (),
+                _ => unreachable!(),
+            }
+        }
 
-fn eval_expr(rules: &std::collections::HashMap<String, Expression>, expr: Expression) -> u16 {
-    match expr {
-        Expression::Number(x) => return x,
-        Expression::Identifier(id) => {
-            println!("{}", id);
-            return eval_expr(&rules, rules.get(&id).unwrap().to_owned());
+        return Statements(statements);
+    }
+
+    fn eval(&self, id: &str) -> u16 {
+        let Statements(rules) = self;
+        let expr = rules.get(id).unwrap().to_owned();
+        return self.eval_expr(expr);
+    }
+
+    fn eval_expr(&self, expr: Expression) -> u16 {
+        match expr {
+            Expression::Number(x) => return x,
+            Expression::Identifier(id) => {
+                return self.eval(id.as_str());
+            }
+            Expression::LShift(left, right) => {
+                self.eval_expr(left.into()) << self.eval_expr(right.into())
+            }
+            Expression::RShift(left, right) => {
+                self.eval_expr(left.into()) >> self.eval_expr(right.into())
+            }
+            Expression::And(left, right) => {
+                self.eval_expr(left.into()) & self.eval_expr(right.into())
+            }
+            Expression::Or(left, right) => {
+                self.eval_expr(left.into()) | self.eval_expr(right.into())
+            }
+            Expression::Not(val) => !self.eval_expr(val.into()),
         }
-        Expression::LShift(left, right) => {
-            eval_expr(rules, left.into()) << eval_expr(rules, right.into())
-        }
-        Expression::RShift(left, right) => {
-            eval_expr(rules, left.into()) >> eval_expr(rules, right.into())
-        }
-        Expression::And(left, right) => {
-            eval_expr(rules, left.into()) & eval_expr(rules, right.into())
-        }
-        Expression::Or(left, right) => {
-            eval_expr(rules, left.into()) | eval_expr(rules, right.into())
-        }
-        Expression::Not(val) => !eval_expr(rules, val.into()),
     }
 }
 
@@ -113,21 +138,7 @@ fn main() {
         .next()
         .unwrap();
 
-    let mut statements: std::collections::HashMap<String, Expression> =
-        std::collections::HashMap::new();
-
-    for statement in input.into_inner() {
-        match statement.as_rule() {
-            Rule::statement => {
-                let mut tokens = statement.into_inner();
-                let expr = parse_expression(tokens.next().unwrap());
-                let identifier = tokens.next().unwrap().as_str().to_owned();
-                statements.insert(identifier, expr);
-            }
-            Rule::EOI => (),
-            _ => unreachable!(),
-        }
-    }
-    let result = eval_expr(&statements, statements.get("a").unwrap().to_owned());
+    let statements = Statements::parse(input);
+    let result = statements.eval("a");
     println!("result part 1: {}", result);
 }
