@@ -3,6 +3,7 @@ extern crate pest;
 extern crate pest_derive;
 
 use crate::pest::Parser;
+use std::collections::HashMap;
 use std::fs;
 
 #[derive(Parser)]
@@ -79,12 +80,11 @@ impl Expression {
 }
 
 #[derive(Debug)]
-struct Statements(std::collections::HashMap<String, Expression>);
+struct Statements(HashMap<String, Expression>);
 
 impl Statements {
     fn parse(pair: pest::iterators::Pair<Rule>) -> Statements {
-        let mut statements: std::collections::HashMap<String, Expression> =
-            std::collections::HashMap::new();
+        let mut statements: HashMap<String, Expression> = HashMap::new();
 
         for statement in pair.into_inner() {
             match statement.as_rule() {
@@ -102,31 +102,38 @@ impl Statements {
         return Statements(statements);
     }
 
-    fn eval(&self, id: &str) -> u16 {
+    fn eval_id(&self, id: &str, cache: &mut HashMap<String, u16>) -> u16 {
         let Statements(rules) = self;
         let expr = rules.get(id).unwrap().to_owned();
-        return self.eval_expr(expr);
+        return self.eval(expr, cache);
     }
 
-    fn eval_expr(&self, expr: Expression) -> u16 {
+    fn eval(&self, expr: Expression, cache: &mut HashMap<String, u16>) -> u16 {
         match expr {
             Expression::Number(x) => return x,
-            Expression::Identifier(id) => {
-                return self.eval(id.as_str());
-            }
+            Expression::Identifier(id) => match cache.get(&id) {
+                Some(x) => *x,
+                None => {
+                    let Statements(rules) = self;
+                    let expr = rules.get(&id).unwrap().to_owned();
+                    let x = self.eval(expr, cache);
+                    cache.insert(id, x);
+                    x
+                }
+            },
             Expression::LShift(left, right) => {
-                self.eval_expr(left.into()) << self.eval_expr(right.into())
+                self.eval(left.into(), cache) << self.eval(right.into(), cache)
             }
             Expression::RShift(left, right) => {
-                self.eval_expr(left.into()) >> self.eval_expr(right.into())
+                self.eval(left.into(), cache) >> self.eval(right.into(), cache)
             }
             Expression::And(left, right) => {
-                self.eval_expr(left.into()) & self.eval_expr(right.into())
+                self.eval(left.into(), cache) & self.eval(right.into(), cache)
             }
             Expression::Or(left, right) => {
-                self.eval_expr(left.into()) | self.eval_expr(right.into())
+                self.eval(left.into(), cache) | self.eval(right.into(), cache)
             }
-            Expression::Not(val) => !self.eval_expr(val.into()),
+            Expression::Not(val) => !self.eval(val.into(), cache),
         }
     }
 }
@@ -139,6 +146,12 @@ fn main() {
         .unwrap();
 
     let statements = Statements::parse(input);
-    let result = statements.eval("a");
+    let mut cache: HashMap<String, u16> = HashMap::new();
+    let result = statements.eval_id("a", &mut cache);
     println!("result part 1: {}", result);
+
+    let mut cache: HashMap<String, u16> = HashMap::new();
+    cache.insert("b".to_owned(), result);
+    let result = statements.eval_id("a", &mut cache);
+    println!("result part 2: {}", result);
 }
