@@ -1,0 +1,13 @@
+number = @{ ASCII_DIGIT+ }
+ident = @{ ASCII_ALPHA+ }
+value = { number | ident }
+
+unary_operator = { ("NOT") }
+binary_operator = { ("OR" | "AND" | "LSHIFT" | "RSHIFT") }
+binary_expr = { value ~ binary_operator ~ value }
+unary_expr = { unary_operator ~ value }
+expr = { binary_expr | unary_expr | value }
+statement = { expr ~ "->" ~ ident }
+file = { SOI ~ (statement ~ NEWLINE)* ~ EOI }
+
+WHITESPACE = _{ " " }
