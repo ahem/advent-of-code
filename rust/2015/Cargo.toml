@@ -32,6 +32,10 @@ path = "src/6/day_6.rs"
 name = "day_7"
 path = "src/7/day_7.rs"
 
+[[bin]]
+name = "day_8"
+path = "src/8/day_8.rs"
+
 [dependencies]
 fancy-regex = "0.5.0"
 lazy_static = "1.4.0"
