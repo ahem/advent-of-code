@@ -1,0 +1,12 @@
+[package]
+name = "advent_of_code"
+version = "0.1.0"
+authors = ["Anders Hellerup Madsen <ahem@github.com>"]
+edition = "2018"
+
+[[bin]]
+name = "day_1"
+path = "src/1/day_1.rs"
+
+[dependencies]
+itertools = "0.10.1"
