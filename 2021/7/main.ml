@@ -4,7 +4,7 @@ let read_input () =
 let range start stop =
   Seq.unfold (fun i -> if i < stop then Some (i, i + 1) else None) start
 
-let fac n =
+let step n =
   let rec loop acc = function 0 -> acc | n -> loop (n + acc) (n - 1) in
   loop 0 n
 
@@ -22,6 +22,6 @@ let () =
 
   range min (max + 1)
   |> Seq.map (fun n ->
-         List.fold_left (fun acc x -> acc + fac (Int.abs (x - n))) 0 numbers)
+         List.fold_left (fun acc x -> acc + step (Int.abs (x - n))) 0 numbers)
   |> Seq.fold_left Int.min Int.max_int
   |> Printf.printf "Part2: %d\n"
