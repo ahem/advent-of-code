@@ -39,12 +39,12 @@ let find_digits : CharSet.t list -> int DigitMap.t =
   let four, lst = find_and_remove lst (len 4) in
   let seven, lst = find_and_remove lst (len 3) in
   let eight, lst = find_and_remove lst (len 7) in
-  let six, lst = find_and_remove lst (both (len 6) (missing_one ~from:one)) in
   let three, lst = find_and_remove lst (both (len 5) (has_all ~from:one)) in
   let five, lst = find_and_remove lst (both (len 5) (missing_one ~from:four)) in
   let two, lst = find_and_remove lst (len 5) in
+  let six, lst = find_and_remove lst (both (len 6) (missing_one ~from:one)) in
   let zero, lst = find_and_remove lst (both (len 6) (missing_one ~from:four)) in
-  let nine = match lst with [ x ] -> x | _ -> failwith "unexpected error" in
+  let nine, _ = find_and_remove lst (len 6) in
   [ zero; one; two; three; four; five; six; seven; eight; nine ]
   |> List.mapi (fun n v -> (v, n))
   |> List.to_seq |> DigitMap.of_seq
