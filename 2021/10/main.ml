@@ -4,10 +4,6 @@ let read_input () =
   in
   List.rev @@ loop []
 
-let push c stack = c :: stack
-
-let pop = function c :: tail -> Some (c, tail) | _ -> None
-
 let middle_of_list lst = List.nth lst @@ (List.length lst / 2)
 
 let is_opener = function
@@ -15,19 +11,19 @@ let is_opener = function
   | ')' | ']' | '}' | '>' -> false
   | c -> failwith @@ Printf.sprintf "invalid char: %c" c
 
-let is_closer_for c = function
-  | ')' when c = '(' -> true
-  | ']' when c = '[' -> true
-  | '}' when c = '{' -> true
-  | '>' when c = '<' -> true
-  | _ -> false
+let is_pair = function
+  | '(' -> ( = ) ')'
+  | '[' -> ( = ) ']'
+  | '{' -> ( = ) '}'
+  | '<' -> ( = ) '>'
+  | _ -> fun _ -> false
 
 let parse s =
   let rec loop stack = function
-    | Seq.Cons (c, next) when is_opener c -> loop (push c stack) (next ())
+    | Seq.Cons (c, next) when is_opener c -> loop (c :: stack) (next ())
     | Seq.Cons (c, next) -> (
-        match pop stack with
-        | Some (c', stack) when is_closer_for c' c -> loop stack (next ())
+        match stack with
+        | c' :: stack when is_pair c' c -> loop stack (next ())
         | _ -> `Corrupted c)
     | Nil -> ( match stack with [] -> `Complete | stack -> `Missing stack)
   in
@@ -51,18 +47,18 @@ let score_missing =
     0
 
 let () =
-  let input = read_input () in
+  let lines = read_input () |> List.map parse in
 
-  input
-  |> List.filter_map (fun s ->
-         match parse s with `Corrupted c -> Some (score_invalid c) | _ -> None)
+  lines
+  |> List.filter_map (function
+       | `Corrupted c -> Some (score_invalid c)
+       | _ -> None)
   |> List.fold_left ( + ) 0
   |> Printf.printf "Part 1: %d\n";
 
-  input
-  |> List.filter_map (fun s ->
-         match parse s with
-         | `Missing lst -> Some (score_missing lst)
-         | _ -> None)
+  lines
+  |> List.filter_map (function
+       | `Missing lst -> Some (score_missing lst)
+       | _ -> None)
   |> List.sort Int.compare |> middle_of_list
   |> Printf.printf "Part 2: %d\n"
