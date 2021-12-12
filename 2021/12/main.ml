@@ -38,6 +38,12 @@ let print_map : cave StrMap.t -> unit =
       Printf.printf "\n")
     map
 
+let has_duplicate_small lst =
+  let lst = List.filter (fun s -> s = String.lowercase_ascii s) lst in
+  let len = List.length lst in
+  let uniq_len = List.length @@ List.sort_uniq String.compare lst in
+  len > uniq_len
+
 let rec part1_walk : cave StrMap.t -> string list -> string -> int -> int =
  fun map visited name acc ->
   if name = "end" then acc + 1
@@ -47,13 +53,37 @@ let rec part1_walk : cave StrMap.t -> string list -> string -> int -> int =
     let exits =
       List.filter
         (fun s ->
-          match StrMap.find s map with
-          | { size = Small; _ } -> not (List.mem s visited)
-          | _ -> true)
+          if s = "start" then false
+          else
+            match StrMap.find s map with
+            | { size = Small; _ } -> not (List.mem s visited)
+            | _ -> true)
         cave.exits
     in
     List.fold_left (fun acc s -> part1_walk map visited s acc) acc exits
 
+let rec part2_walk : cave StrMap.t -> string list -> string -> int -> int =
+ fun map visited name acc ->
+  if name = "end" then acc + 1
+  else
+    let cave = StrMap.find name map in
+    let visited = name :: visited in
+    let exits =
+      List.filter
+        (fun s ->
+          if s = "start" then false
+          else
+            match StrMap.find s map with
+            | { size = Small; _ } ->
+                if has_duplicate_small visited then not (List.mem s visited)
+                else true
+            | _ -> true)
+        cave.exits
+    in
+    List.fold_left (fun acc s -> part2_walk map visited s acc) acc exits
+
 let () =
   let map = read_input () in
-  part1_walk map [] "start" 0 |> Printf.printf "Part 1: %d"
+  part1_walk map [] "start" 0 |> Printf.printf "Part 1: %d\n";
+
+  part2_walk map [] "start" 0 |> Printf.printf "Part 2: %d\n"
