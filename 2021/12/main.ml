@@ -29,61 +29,37 @@ let read_input () =
          acc)
        StrMap.empty
 
-let print_map : cave StrMap.t -> unit =
- fun map ->
-  StrMap.iter
-    (fun name { exits; _ } ->
-      Printf.printf "%s: " name;
-      List.iter (Printf.printf "%s ") exits;
-      Printf.printf "\n")
-    map
+let visit_small_cave visited cave name =
+  if cave.size = Small then
+    StrMap.update name
+      (function Some v -> Some (v + 1) | None -> Some 1)
+      visited
+  else visited
 
-let has_duplicate_small lst =
-  let lst = List.filter (fun s -> s = String.lowercase_ascii s) lst in
-  let len = List.length lst in
-  let uniq_len = List.length @@ List.sort_uniq String.compare lst in
-  len > uniq_len
-
-let rec part1_walk : cave StrMap.t -> string list -> string -> int -> int =
- fun map visited name acc ->
+let rec walk ~check_small map visited name acc =
   if name = "end" then acc + 1
   else
     let cave = StrMap.find name map in
-    let visited = name :: visited in
+    let visited = visit_small_cave visited cave name in
     let exits =
       List.filter
-        (fun s ->
-          if s = "start" then false
-          else
-            match StrMap.find s map with
-            | { size = Small; _ } -> not (List.mem s visited)
-            | _ -> true)
+        (function
+          | "start" -> false
+          | s when (StrMap.find s map).size = Big -> true
+          | s -> check_small visited s)
         cave.exits
     in
-    List.fold_left (fun acc s -> part1_walk map visited s acc) acc exits
-
-let rec part2_walk : cave StrMap.t -> string list -> string -> int -> int =
- fun map visited name acc ->
-  if name = "end" then acc + 1
-  else
-    let cave = StrMap.find name map in
-    let visited = name :: visited in
-    let exits =
-      List.filter
-        (fun s ->
-          if s = "start" then false
-          else
-            match StrMap.find s map with
-            | { size = Small; _ } ->
-                if has_duplicate_small visited then not (List.mem s visited)
-                else true
-            | _ -> true)
-        cave.exits
-    in
-    List.fold_left (fun acc s -> part2_walk map visited s acc) acc exits
+    List.fold_left (fun acc s -> walk ~check_small map visited s acc) acc exits
 
 let () =
   let map = read_input () in
-  part1_walk map [] "start" 0 |> Printf.printf "Part 1: %d\n";
 
-  part2_walk map [] "start" 0 |> Printf.printf "Part 2: %d\n"
+  Printf.printf "Part 1: %d\n"
+  @@ walk map StrMap.empty "start" 0 ~check_small:(fun visited s ->
+         not (StrMap.mem s visited));
+
+  Printf.printf "Part 2: %d\n"
+  @@ walk map StrMap.empty "start" 0 ~check_small:(fun visited s ->
+         if StrMap.exists (fun _ v -> v > 1) visited then
+           not (StrMap.mem s visited)
+         else true)
