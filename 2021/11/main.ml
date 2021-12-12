@@ -13,25 +13,41 @@ let read_input () =
   |> Seq.concat
   |> Seq.fold_left (fun grid (x, y, v) -> Grid.add (x, y) v grid) Grid.empty
 
+let print_grid : int Grid.t -> unit =
+ fun grid ->
+  let max_x =
+    Grid.bindings grid |> List.map fst |> List.map fst |> List.sort Int.compare
+    |> List.rev |> List.hd
+  in
+  let max_y =
+    Grid.bindings grid |> List.map fst |> List.map snd |> List.sort Int.compare
+    |> List.rev |> List.hd
+  in
+  Seq.unfold (fun y -> if y <= max_y then Some (y, y + 1) else None) 0
+  |> Seq.iter (fun y ->
+         Seq.unfold (fun x -> if x <= max_x then Some (x, x + 1) else None) 0
+         |> Seq.iter (fun x -> Printf.printf "%d" (Grid.find (x, y) grid));
+         Printf.printf "\n");
+  Printf.printf "\n"
+
 let directions =
   [ (-1, -1); (0, -1); (1, -1); (-1, 0); (1, 0); (-1, 1); (0, 1); (1, 1) ]
 
 let rec flash : int Grid.t -> Grid.key -> int Grid.t =
- fun grid (px, py) ->
-  if Grid.find (px, py) grid = 0 then grid
+ fun grid (x, y) ->
+  if Grid.find (x, y) grid = 0 then grid
   else
-    let grid = Grid.add (px, py) 0 grid in
-    let grid =
-      List.fold_left
-        (fun grid (x, y) ->
-          let x = x + px and y = y + py in
-          match Grid.find_opt (x, y) grid with
-          | None | Some 0 -> grid
-          | Some v when v < 9 -> Grid.add (x, y) (v + 1) grid
-          | Some _ -> flash grid (x, y))
-        grid directions
-    in
-    grid
+    (* reset flashing square to 0 *)
+    let grid = Grid.add (x, y) 0 grid in
+
+    (* then process adjacents (increase with 1, flash if necessary) *)
+    List.fold_left
+      (fun grid (dx, dy) ->
+        match Grid.find_opt (x + dx, y + dy) grid with
+        | None | Some 0 -> grid
+        | Some v when v < 9 -> Grid.add (x + dx, y + dy) (v + 1) grid
+        | Some _ -> flash grid (x + dx, y + dy))
+      grid directions
 
 let step grid =
   (* increase all *)
