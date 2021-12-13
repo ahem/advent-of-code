@@ -38,16 +38,9 @@ let fold_grid grid (c, n) =
   | _ -> failwith "invalid fold direction"
 
 let print_grid grid =
-  let max_x =
-    Grid.elements grid |> List.map fst |> List.sort Int.compare |> List.rev
-    |> List.hd
-  in
-  let max_y =
-    Grid.elements grid |> List.map snd |> List.sort Int.compare |> List.rev
-    |> List.hd
-  in
-  for y = 0 to max_y do
-    for x = 0 to max_x do
+  let max_x, max_y = Grid.max_elt grid in
+  for y = 0 to max_y + 1 do
+    for x = 0 to max_x + 1 do
       Printf.printf "%c" (if Grid.mem (x, y) grid then '*' else ' ')
     done;
     Printf.printf "\n"
