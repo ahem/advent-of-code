@@ -46,12 +46,12 @@ let print_grid grid =
     Grid.elements grid |> List.map snd |> List.sort Int.compare |> List.rev
     |> List.hd
   in
-  Seq.unfold (fun y -> if y <= max_y then Some (y, y + 1) else None) 0
-  |> Seq.iter (fun y ->
-         Seq.unfold (fun x -> if x <= max_x then Some (x, x + 1) else None) 0
-         |> Seq.iter (fun x ->
-                Printf.printf "%c" (if Grid.mem (x, y) grid then '*' else ' '));
-         Printf.printf "\n")
+  for y = 0 to max_y do
+    for x = 0 to max_x do
+      Printf.printf "%c" (if Grid.mem (x, y) grid then '*' else ' ')
+    done;
+    Printf.printf "\n"
+  done
 
 let () =
   let grid, folds = read_input () in
