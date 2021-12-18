@@ -52,9 +52,21 @@ module BitString = struct
     (to_int bits, rest)
 end
 
-type node = Literal of int | Operator of packet list
+type operator = Fold of (int -> int -> int) | Compare of (int -> int -> bool)
+
+type node = LiteralPacket of int | OperatorPacket of operator * packet list
 
 and packet = int * node
+
+let operator_of_type_id = function
+  | 0 -> Fold ( + )
+  | 1 -> Fold ( * )
+  | 2 -> Fold Int.min
+  | 3 -> Fold Int.max
+  | 5 -> Compare ( > )
+  | 6 -> Compare ( < )
+  | 7 -> Compare ( = )
+  | _ -> failwith "invalid operator"
 
 let rec read_packet : BitString.t -> packet * BitString.t =
  fun lst ->
@@ -63,10 +75,11 @@ let rec read_packet : BitString.t -> packet * BitString.t =
   match packet_type_id with
   | 4 ->
       let n, lst = read_literal lst in
-      ((packet_version, Literal n), lst)
-  | _ ->
+      ((packet_version, LiteralPacket n), lst)
+  | n ->
+      let operator = operator_of_type_id n in
       let packages, lst = read_operator lst in
-      ((packet_version, Operator packages), lst)
+      ((packet_version, OperatorPacket (operator, packages)), lst)
 
 and read_literal lst =
   let rec loop acc lst =
@@ -103,12 +116,29 @@ and read_operator = function
 
 let sum_versions : packet -> int =
   let rec loop acc = function
-    | version, Literal _ -> acc + version
-    | version, Operator packages -> List.fold_left loop (acc + version) packages
+    | version, LiteralPacket _ -> acc + version
+    | version, OperatorPacket (_, packages) ->
+        List.fold_left loop (acc + version) packages
   in
   loop 0
+
+let rec eval_packet : packet -> int = function
+  | _, LiteralPacket n -> n
+  | _, OperatorPacket (Fold op, packages) -> (
+      match packages with
+      | hd :: tail ->
+          List.fold_left
+            (fun acc p -> op acc @@ eval_packet p)
+            (eval_packet hd) tail
+      | _ -> failwith "invalid product packet")
+  | _, OperatorPacket (Compare op, packages) -> (
+      match packages with
+      | [ a; b ] -> if op (eval_packet a) (eval_packet b) then 1 else 0
+      | _ -> failwith "invalid equal packet")
 
 let () =
   let lst = read_input () in
   let packet, _ = read_packet lst in
-  Printf.printf "Part 1: %d\n" @@ sum_versions packet
+
+  Printf.printf "Part 1: %d\n" @@ sum_versions packet;
+  Printf.printf "Part 2: %d\n" @@ eval_packet packet
