@@ -6,25 +6,7 @@ enum Shape {
     Scissors,
 }
 
-impl From<char> for Shape {
-    fn from(c: char) -> Self {
-        match c {
-            'A' | 'X' => Shape::Rock,
-            'B' | 'Y' => Shape::Paper,
-            'C' | 'Z' => Shape::Scissors,
-            _ => unreachable!(),
-        }
-    }
-}
-
-fn parse_line(s: String) -> (Shape, Shape) {
-    (
-        Shape::from(s.chars().nth(0).unwrap()),
-        Shape::from(s.chars().nth(2).unwrap()),
-    )
-}
-
-fn score(shapes: &(Shape, Shape)) -> u32 {
+fn score(shapes: (Shape, Shape)) -> u32 {
     match shapes {
         (Shape::Rock, Shape::Rock) => 3 + 1,
         (Shape::Rock, Shape::Paper) => 6 + 2,
@@ -38,13 +20,50 @@ fn score(shapes: &(Shape, Shape)) -> u32 {
     }
 }
 
-fn main() {
-    let lst: Vec<(Shape, Shape)> = io::stdin()
-        .lock()
-        .lines()
-        .map(|s| parse_line(s.unwrap()))
-        .collect();
+fn part_1_parse(s: &String) -> (Shape, Shape) {
+    match s.trim() {
+        "A X" => (Shape::Rock, Shape::Rock),
+        "A Y" => (Shape::Rock, Shape::Paper),
+        "A Z" => (Shape::Rock, Shape::Scissors),
+        "B X" => (Shape::Paper, Shape::Rock),
+        "B Y" => (Shape::Paper, Shape::Paper),
+        "B Z" => (Shape::Paper, Shape::Scissors),
+        "C X" => (Shape::Scissors, Shape::Rock),
+        "C Y" => (Shape::Scissors, Shape::Paper),
+        "C Z" => (Shape::Scissors, Shape::Scissors),
+        _ => unreachable!(),
+    }
+}
 
-    let score = lst.iter().fold(0, |acc, shapes| acc + score(shapes));
-    println!("\nPart 1: {score}");
+fn part_2_parse(s: &String) -> (Shape, Shape) {
+    match s.trim() {
+        "A X" => (Shape::Rock, Shape::Scissors),
+        "A Y" => (Shape::Rock, Shape::Rock),
+        "A Z" => (Shape::Rock, Shape::Paper),
+        "B X" => (Shape::Paper, Shape::Rock),
+        "B Y" => (Shape::Paper, Shape::Paper),
+        "B Z" => (Shape::Paper, Shape::Scissors),
+        "C X" => (Shape::Scissors, Shape::Paper),
+        "C Y" => (Shape::Scissors, Shape::Scissors),
+        "C Z" => (Shape::Scissors, Shape::Rock),
+        _ => unreachable!(),
+    }
+}
+
+fn main() {
+    let input: Vec<String> = io::stdin().lock().lines().map(|s| s.unwrap()).collect();
+
+    let part_1_score = input
+        .iter()
+        .map(part_1_parse)
+        .fold(0, |acc, shapes| acc + score(shapes));
+
+    println!("\nPart 1: {part_1_score}");
+
+    let part_2_score = input
+        .iter()
+        .map(part_2_parse)
+        .fold(0, |acc, shapes| acc + score(shapes));
+
+    println!("\nPart 2: {part_2_score}");
 }
