@@ -122,16 +122,17 @@ fn read_input() -> Result<String, std::io::Error> {
 
 fn parse(s: &str) -> Result<(stacks::Stacks, Vec<instruction::Instruction>), ParseError> {
     let mut iter = s.splitn(2, "\n\n");
-    let stacks = iter.next().ok_or(ParseError)?.parse::<stacks::Stacks>()?;
 
-    let instructions: Result<Vec<instruction::Instruction>, ParseError> = iter
-        .next()
-        .ok_or(ParseError)?
+    let stacks_str = iter.next().ok_or(ParseError)?;
+    let stacks = stacks_str.parse::<stacks::Stacks>()?;
+
+    let instructions_str = iter.next().ok_or(ParseError)?;
+    let instructions = instructions_str
         .lines()
-        .map(|l| l.parse::<instruction::Instruction>())
-        .collect();
+        .map(str::parse::<instruction::Instruction>)
+        .collect::<Result<_, _>>()?;
 
-    Ok((stacks, instructions?))
+    Ok((stacks, instructions))
 }
 
 fn main() {
