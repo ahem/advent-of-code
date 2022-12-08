@@ -71,18 +71,14 @@ use parser::*;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-fn main() {
-    let parsed_lines = std::io::stdin()
-        .lines()
-        .map(|s| parser::parse_line(s.unwrap().as_str()))
-        .collect::<Result<Vec<Line>, ParseError>>()
-        .unwrap();
-
+fn build_file_index<T>(parsed_lines: T) -> HashMap<PathBuf, u32>
+where
+    T: IntoIterator<Item = Line>,
+{
     let mut files = HashMap::<PathBuf, u32>::new();
     let root = "/".parse::<PathBuf>().unwrap();
     let mut path = root.clone();
 
-    // build directory tree
     for line in parsed_lines {
         match line {
             Line::Command(Command::ChangeDirRoot) => path = root.clone(),
@@ -94,23 +90,24 @@ fn main() {
             Line::Command(Command::List) => (),
             Line::Output(Output::Directory(_)) => (),
             Line::Output(Output::File(name, size)) => {
-                let mut path = path.clone();
-                path.push(name);
-                files.insert(path, size);
+                files.insert(path.join(name), size);
             }
         }
     }
 
-    // count directory sizes
-    let mut directories = HashMap::<PathBuf, u32>::new();
+    return files;
+}
 
-    for (path, size) in files {
+fn build_directory_index(file_index: &HashMap<PathBuf, u32>) -> HashMap<PathBuf, u32> {
+    let mut index = HashMap::<PathBuf, u32>::new();
+
+    for (path, size) in file_index {
         let mut dir = path.parent().unwrap().to_owned();
         loop {
-            if directories.contains_key(&dir) {
-                *directories.get_mut(&dir).unwrap() += size;
+            if index.contains_key(&dir) {
+                *index.get_mut(&dir).unwrap() += size;
             } else {
-                directories.insert(dir.clone(), size);
+                index.insert(dir.clone(), *size);
             }
             if !dir.pop() {
                 break;
@@ -118,15 +115,32 @@ fn main() {
         }
     }
 
-    let small_dirs_size = directories.values().filter(|x| **x < 100000).sum::<u32>();
+    return index;
+}
+
+fn main() {
+    let parsed_lines = std::io::stdin()
+        .lines()
+        .map(|s| parser::parse_line(s.unwrap().as_str()))
+        .collect::<Result<Vec<Line>, ParseError>>()
+        .unwrap();
+
+    let file_index = build_file_index(parsed_lines);
+    let directory_index = build_directory_index(&file_index);
+
+    let small_dirs_size = directory_index
+        .values()
+        .filter(|x| **x < 100000)
+        .sum::<u32>();
+
     println!("part 1: {small_dirs_size}");
 
     let total_size = 70000000;
     let needed_space = 30000000;
-    let used_space = directories.values().max().unwrap();
+    let used_space = directory_index.values().max().unwrap();
     let need_to_free = needed_space - (total_size - used_space);
 
-    let size_of_selected_dir = directories
+    let size_of_selected_dir = directory_index
         .values()
         .filter(|x| **x >= need_to_free)
         .min()
