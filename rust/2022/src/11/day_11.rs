@@ -1,13 +1,13 @@
 use std::collections::VecDeque;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Operation {
     Add(usize),
     Mul(usize),
     Square,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Monkey {
     items: VecDeque<usize>,
     operation: Operation,
@@ -135,10 +135,15 @@ impl Monkey {
 }
 
 fn play_round(monkeys: &mut Vec<Monkey>, relief_factor: usize) {
+    let x = monkeys
+        .iter()
+        .map(|m| m.test_divisible_by)
+        .fold(1, |acc, x| acc * x);
+
     for n in 0..(monkeys.len()) {
         loop {
             match monkeys[n].inspect_next_item(relief_factor) {
-                Some(r) => monkeys[r.to].catch_item(r.level),
+                Some(r) => monkeys[r.to].catch_item(r.level % x),
                 None => break,
             }
         }
@@ -161,9 +166,19 @@ fn read_input() -> Result<String, std::io::Error> {
 
 fn main() {
     let s = read_input().unwrap();
-    let mut monkeys = parser::parse_monkeys(s.as_str()).unwrap();
-    for _ in 0..20 {
-        play_round(&mut monkeys, 3);
+    let monkeys = parser::parse_monkeys(s.as_str()).unwrap();
+    {
+        let mut monkeys = monkeys.clone();
+        for _ in 0..20 {
+            play_round(&mut monkeys, 3);
+        }
+        println!("part 1: {}", monkey_business(&monkeys));
     }
-    println!("part 1: {}", monkey_business(&monkeys));
+    {
+        let mut monkeys = monkeys.clone();
+        for _ in 0..10000 {
+            play_round(&mut monkeys, 1);
+        }
+        println!("part 2: {}", monkey_business(&monkeys));
+    }
 }
