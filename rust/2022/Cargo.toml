@@ -9,6 +9,7 @@ edition = "2021"
 itertools = "0.10.5"
 lazy_static = "1.4.0"
 nom = "7.1.1"
+num-bigint = "0.4.3"
 regex = "1.7.0"
 
 [[bin]]
@@ -46,3 +47,11 @@ path = "src/8/day_8.rs"
 [[bin]]
 name = "day_9"
 path = "src/9/day_9.rs"
+
+[[bin]]
+name = "day_10"
+path = "src/10/day_10.rs"
+
+[[bin]]
+name = "day_11"
+path = "src/11/day_11.rs"
