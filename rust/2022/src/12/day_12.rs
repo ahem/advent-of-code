@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::str::FromStr;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -80,60 +80,85 @@ impl Grid {
     }
 
     fn find_path(&self) -> Option<Vec<Point>> {
+        a_star::find_path(
+            &self.start,
+            &self.end,
+            |p: &Point| p.manhattan_dist(&self.end),
+            |p: &Point| self.accessible_neibours(p),
+        )
+    }
+
+    fn find_shortest_path_to_end(&self) -> Option<Vec<Point>> {
+        self.map
+            .keys()
+            .filter(|p| self.map[p] == u32::from('a'))
+            .filter_map(|p| {
+                a_star::find_path(
+                    p,
+                    &self.end,
+                    |p: &Point| p.manhattan_dist(&self.end),
+                    |p: &Point| self.accessible_neibours(p),
+                )
+            })
+            .min_by_key(|p| p.len())
+    }
+}
+
+mod a_star {
+    use std::collections::{HashMap, HashSet};
+
+    pub fn find_path<P, FH, FS, S>(start: &P, end: &P, h: FH, successors: FS) -> Option<Vec<P>>
+    where
+        P: std::hash::Hash + std::cmp::Eq + Clone,
+        FH: Fn(&P) -> u32,
+        FS: Fn(&P) -> S,
+        S: IntoIterator<Item = P>,
+    {
         // keep track of visited fields (not part of final path)
-        let mut closed: HashSet<Point> = HashSet::new();
+        let mut closed: HashSet<P> = HashSet::new();
 
         // keep track of potential fields in path. Value is accumulated score
-        let mut open: HashMap<Point, u32> = HashMap::from([(self.start, 0)]);
+        let mut open: HashMap<P, u32> = HashMap::from([(start.clone(), 0)]);
 
         // keep track of found path
-        let mut parent_fields: HashMap<Point, Point> = HashMap::new();
-
-        // guess distance to goal
-        let h = |p: &Point| p.manhattan_dist(&self.end);
+        let mut parent_fields: HashMap<P, P> = HashMap::new();
 
         loop {
-            if let Some((p, score)) = open
+            let p = open
                 .iter()
-                .min_by(|(p_a, score_a), (p_b, score_b)| {
-                    let a = *score_a + h(p_a);
-                    let b = *score_b + h(p_b);
-                    a.cmp(&b)
-                })
-                .map(|(p, score)| (p.clone(), score.clone()))
-            {
-                open.remove(&p);
-                closed.insert(p);
+                .min_by_key(|(p, score)| **score + h(p))?
+                .0
+                .clone();
 
-                if p == self.end {
-                    return Some(self.trace_back(parent_fields));
-                }
+            if p == *end {
+                return Some(traceback(p, parent_fields));
+            }
 
-                for q in self.accessible_neibours(&p) {
-                    if closed.contains(&q) {
-                        continue;
-                    }
-                    if !open.contains_key(&q) || (open.contains_key(&q) && open[&q] > score + 1) {
-                        println!("      inserting {q:?}...");
-                        open.insert(q, score + 1);
-                        parent_fields.insert(q, p);
-                    }
+            let score = open.remove(&p).unwrap();
+            closed.insert(p.clone());
+
+            for q in successors(&p) {
+                if closed.contains(&q) {
+                    continue;
                 }
-            } else {
-                return None;
+                if !open.contains_key(&q) || (open.contains_key(&q) && open[&q] > score + 1) {
+                    open.insert(q.clone(), score + 1);
+                    parent_fields.insert(q, p.clone());
+                }
             }
         }
     }
 
-    fn trace_back(&self, parent_fields: HashMap<Point, Point>) -> Vec<Point> {
-        let mut p = self.end;
-        let mut path = vec![p];
+    fn traceback<P>(p: P, parent_fields: HashMap<P, P>) -> Vec<P>
+    where
+        P: std::hash::Hash + std::cmp::Eq + Clone,
+    {
+        let mut path = vec![p.clone()];
         loop {
-            p = parent_fields[&p];
-            if p == self.start {
-                break;
+            match parent_fields.get(path.last().unwrap()) {
+                Some(p) => path.push(p.clone()),
+                None => break,
             }
-            path.push(p);
         }
         path.reverse();
         return path;
@@ -152,5 +177,13 @@ pub fn main() {
     let grid = s.parse::<Grid>().unwrap();
 
     let path = grid.find_path();
-    println!("{:?}", path.unwrap().len());
+    println!("Part 1: {:?}", path.unwrap().len() - 1);
+
+    let t = std::time::Instant::now();
+    let path = grid.find_shortest_path_to_end();
+    println!(
+        "Part 2: {:?}  (took: {:?})",
+        path.unwrap().len() - 1,
+        t.elapsed()
+    );
 }
