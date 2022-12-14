@@ -38,19 +38,13 @@ where
     if let Some(start) = iter.next() {
         result.push(start.clone());
         let mut p = start.clone();
-        loop {
-            if let Some(q) = iter.next() {
-                let dx = (q.x - p.x).signum();
-                let dy = (q.y - p.y).signum();
-                while p != q {
-                    p.x += dx;
-                    p.y += dy;
-                    result.push(p.clone());
-                }
-                p = q.clone();
-            } else {
-                break;
+        while let Some(q) = iter.next() {
+            while p != q {
+                p.x += (q.x - p.x).signum();
+                p.y += (q.y - p.y).signum();
+                result.push(p.clone());
             }
+            p = q.clone();
         }
     }
 
@@ -90,7 +84,17 @@ impl Grid {
         }
     }
 
-    pub fn flow(&self, origin: &Point) -> Point {
+    pub fn drop_sand(&mut self, origin: &Point) -> Point {
+        let p = self.flow(origin);
+        self.cells.insert(p.clone(), Field::Sand);
+        return p;
+    }
+
+    pub fn amount_of_sand(&self) -> usize {
+        self.cells.values().filter(|x| **x == Field::Sand).count()
+    }
+
+    fn flow(&self, origin: &Point) -> Point {
         let mut p = origin.clone();
 
         loop {
@@ -106,24 +110,6 @@ impl Grid {
             }
         }
     }
-
-    pub fn drop_sand<F>(&mut self, origin: &Point, condition: F)
-    where
-        F: Fn(&Point) -> bool,
-    {
-        loop {
-            let p = self.flow(origin);
-            if condition(&p) {
-                self.cells.insert(p.clone(), Field::Sand);
-            } else {
-                return;
-            }
-        }
-    }
-
-    pub fn amount_of_sand(&self) -> usize {
-        self.cells.values().filter(|x| **x == Field::Sand).count()
-    }
 }
 
 fn main() {
@@ -135,11 +121,15 @@ fn main() {
     let rocks: Vec<Point> = input.into_iter().flat_map(unfold_lines).collect();
     let mut grid = Grid::from_rock_positions(rocks);
 
-    let bottom = grid.bottom;
     let origin = Point { x: 500, y: 0 };
-    grid.drop_sand(&origin, |p| p.y < bottom);
-    println!("Part 1: {}", grid.amount_of_sand());
 
-    grid.drop_sand(&origin, |p| *p != origin);
-    println!("Part 2: {}", grid.amount_of_sand() + 1);
+    while grid.drop_sand(&origin).y < grid.bottom {
+        continue;
+    }
+    println!("Part 1: {}", grid.amount_of_sand() - 1);
+
+    while grid.drop_sand(&origin) != origin {
+        continue;
+    }
+    println!("Part 2: {}", grid.amount_of_sand());
 }
