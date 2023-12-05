@@ -1,0 +1,4 @@
+(executable
+ (name main)
+ (libraries base stdio re2)
+ (preprocess (pps ppx_let ppx_deriving.show)))
