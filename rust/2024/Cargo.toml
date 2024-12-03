@@ -13,3 +13,7 @@ regex = "1.11.1"
 [[bin]]
 name = "day_1"
 path = "1/day_1.rs"
+
+[[bin]]
+name = "day_2"
+path = "2/day_2.rs"
