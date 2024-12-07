@@ -103,10 +103,12 @@ impl Area {
         self.guard_walk().any(|(pos, dir)| !set.insert((pos, dir)))
     }
 
-    fn empty_positions(&self) -> impl Iterator<Item = Pos> + '_ {
-        (0..self.width)
-            .flat_map(|x| (0..self.height).map(move |y| Pos { x, y }))
-            .filter(|pos| *pos != self.guard_position && !self.obstacles.contains(&pos))
+    fn possible_new_obstacle_positions(&self) -> impl Iterator<Item = Pos> + '_ {
+        self.guard_walk()
+            .map(|(pos, _)| pos)
+            .filter(|pos| *pos != self.guard_position)
+            .collect::<HashSet<_>>()
+            .into_iter()
     }
 }
 
@@ -143,7 +145,7 @@ pub fn main() -> anyhow::Result<()> {
     println!("part 1: {part_1}");
 
     let part_2 = area
-        .empty_positions()
+        .possible_new_obstacle_positions()
         .map(|pos| {
             let mut a = area.clone();
             a.obstacles.insert(pos);
