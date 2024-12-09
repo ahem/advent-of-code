@@ -1,9 +1,9 @@
+use anyhow::anyhow;
+use itertools::*;
 use std::{
     io::{stdin, Read},
     str::FromStr,
 };
-
-use itertools::Itertools;
 
 #[derive(Debug, Clone, Copy)]
 struct Free {
@@ -56,13 +56,13 @@ impl FromStr for Disk {
 }
 
 impl Disk {
-    fn last_file(&self) -> Option<(usize, File)> {
+    fn last_file(&self) -> Option<usize> {
         self.cells
             .iter()
             .enumerate()
             .rev()
             .find_map(|(idx, x)| match x {
-                Cell::File(file) => Some((idx, *file)),
+                Cell::File(_) => Some(idx),
                 _ => None,
             })
     }
@@ -84,14 +84,11 @@ impl Disk {
             .unwrap()
     }
 
-    fn first_free(&self, min_size: i32) -> Option<(usize, Free)> {
-        self.cells
-            .iter()
-            .enumerate()
-            .find_map(|(idx, cell)| match cell {
-                Cell::Free(free) if free.size >= min_size => Some((idx, *free)),
-                _ => None,
-            })
+    fn first_free(&self, min_size: i32) -> Option<usize> {
+        self.cells.iter().position(|cell| match cell {
+            Cell::Free(free) => free.size >= min_size,
+            _ => false,
+        })
     }
 
     fn digits(&self) -> impl Iterator<Item = Option<i32>> + '_ {
@@ -115,34 +112,61 @@ impl Disk {
     fn compact(&mut self) {
         loop {
             // self.show();
-            let (file_idx, file) = self.last_file().unwrap();
-            let (free_idx, free) = self.first_free(0).unwrap();
+            let file_idx = self.last_file().unwrap();
+            let free_idx = self.first_free(0).unwrap();
             if free_idx > file_idx {
                 break;
             }
 
-            if file.size == free.size {
-                self.cells[free_idx] = Cell::File(file);
-                self.cells[file_idx] = Cell::Free(free);
-            } else if file.size < free.size {
-                self.cells[free_idx] = Cell::Free(Free {
-                    size: free.size - file.size,
-                });
-                self.cells[file_idx] = Cell::Free(Free { size: file.size });
-                self.cells.insert(free_idx, Cell::File(file));
-            } else if file.size > free.size {
-                self.cells[free_idx] = Cell::File(File {
-                    id: file.id,
-                    size: free.size,
-                });
-                self.cells[file_idx] = Cell::File(File {
-                    id: file.id,
-                    size: file.size - free.size,
-                });
-            }
-
-            self.merge_free_if_needed(file_idx - 1);
+            self.move_file(file_idx, free_idx).unwrap();
         }
+    }
+
+    fn move_file(&mut self, file_idx: usize, free_idx: usize) -> anyhow::Result<()> {
+        let file = match self.cells.get(file_idx) {
+            Some(Cell::File(file)) => Ok(*file),
+            _ => Err(anyhow!("bad file_idx")),
+        }?;
+        let free = match self.cells.get(free_idx) {
+            Some(Cell::Free(free)) => Ok(*free),
+            _ => Err(anyhow!("bad free_idx")),
+        }?;
+
+        if free_idx > file_idx {
+            return Err(anyhow!("free_idx > file_idx"));
+        }
+
+        if file.size == free.size {
+            self.cells[free_idx] = Cell::File(file);
+            self.cells[file_idx] = Cell::Free(free);
+        } else if file.size < free.size {
+            self.cells[free_idx] = Cell::Free(Free {
+                size: free.size - file.size,
+            });
+            self.cells[file_idx] = Cell::Free(Free { size: file.size });
+            self.cells.insert(free_idx, Cell::File(file));
+        } else if file.size > free.size {
+            self.cells[free_idx] = Cell::File(File {
+                id: file.id,
+                size: free.size,
+            });
+            self.cells[file_idx] = Cell::File(File {
+                id: file.id,
+                size: file.size - free.size,
+            });
+        }
+
+        // merge free cells if needed
+        match (self.cells[file_idx - 1], self.cells[file_idx]) {
+            (Cell::Free(cell_a), Cell::Free(cell_b)) => {
+                let size = cell_a.size + cell_b.size;
+                self.cells[file_idx - 1] = Cell::Free(Free { size });
+                self.cells.remove(file_idx);
+            }
+            _ => (),
+        };
+
+        Ok(())
     }
 
     fn compact_defragged(&mut self) {
@@ -150,44 +174,14 @@ impl Disk {
         for id in (0..=max_file_id).rev() {
             // self.show();
             let (file_idx, file) = self.file_by_id(id);
-            let (free_idx, free) = match self.first_free(file.size) {
+            let free_idx = match self.first_free(file.size) {
                 Some(o) => o,
                 _ => continue,
             };
             if free_idx > file_idx {
                 continue;
             }
-            if file.size == free.size {
-                self.cells[free_idx] = Cell::File(file);
-                self.cells[file_idx] = Cell::Free(free);
-            } else if file.size < free.size {
-                self.cells[free_idx] = Cell::Free(Free {
-                    size: free.size - file.size,
-                });
-                self.cells[file_idx] = Cell::Free(Free { size: file.size });
-                self.cells.insert(free_idx, Cell::File(file));
-            } else {
-                unreachable!();
-            }
-
-            self.merge_free_if_needed(file_idx - 1);
-        }
-    }
-
-    fn merge_free_if_needed(&mut self, idx: usize) {
-        let a = match self.cells[idx] {
-            Cell::Free(free) => Some(free),
-            _ => None,
-        };
-        let b = match self.cells[idx + 1] {
-            Cell::Free(free) => Some(free),
-            _ => None,
-        };
-
-        if a.is_some() && b.is_some() {
-            let size = a.unwrap().size + b.unwrap().size;
-            self.cells.remove(idx);
-            self.cells[idx] = Cell::Free(Free { size });
+            self.move_file(file_idx, free_idx).unwrap()
         }
     }
 
