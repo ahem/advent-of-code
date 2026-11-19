@@ -1,15 +1,6 @@
 use anyhow::anyhow;
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 
-pub struct IntCode {
-    mem: Vec<i64>,
-    pc: usize,
-    input_sender: Option<SyncSender<i64>>,
-    input: Option<Receiver<i64>>,
-    output: Option<SyncSender<i64>>,
-    output_receiver: Option<Receiver<i64>>,
-}
-
 #[derive(Copy, Clone, Debug)]
 enum Instruction {
     Add(Mode, Mode, Mode),
@@ -20,6 +11,7 @@ enum Instruction {
     JumpIfFalse(Mode, Mode),
     LessThan(Mode, Mode, Mode),
     Equals(Mode, Mode, Mode),
+    AdjustRelativeBase(Mode),
     Halt,
 }
 
@@ -41,6 +33,7 @@ impl TryFrom<i64> for Instruction {
             6 => Ok(Instruction::JumpIfFalse(operands[0], operands[1])),
             7 => Ok(Instruction::LessThan(operands[0], operands[1], operands[2])),
             8 => Ok(Instruction::Equals(operands[0], operands[1], operands[2])),
+            9 => Ok(Instruction::AdjustRelativeBase(operands[0])),
             99 => Ok(Instruction::Halt),
             other => Err(anyhow!("invalid instruction id: {other}")),
         }
@@ -51,6 +44,7 @@ impl TryFrom<i64> for Instruction {
 enum Mode {
     Position,
     Immediate,
+    Relative,
 }
 
 impl TryFrom<i64> for Mode {
@@ -59,20 +53,30 @@ impl TryFrom<i64> for Mode {
         match value {
             0 => Ok(Mode::Position),
             1 => Ok(Mode::Immediate),
+            2 => Ok(Mode::Relative),
             other => Err(anyhow!("invalid parameter mode: {other}")),
         }
     }
 }
 
+pub struct IntCode {
+    mem: Vec<i64>,
+    pc: usize,
+    base: i64,
+    input_sender: Option<SyncSender<i64>>,
+    input: Option<Receiver<i64>>,
+    output: Option<SyncSender<i64>>,
+    output_receiver: Option<Receiver<i64>>,
+}
+
 impl IntCode {
-    pub fn new(s: &[i64]) -> Self {
-        let mut mem = s.to_vec();
-        mem.resize(1000000, 0);
+    pub fn new(data: &[i64]) -> Self {
         let (input_sender, input) = sync_channel(100);
         let (output, output_receiver) = sync_channel(100);
         Self {
-            mem,
             pc: 0,
+            base: 0,
+            mem: data.to_vec(),
             input_sender: Some(input_sender),
             input: Some(input),
             output: Some(output),
@@ -80,12 +84,17 @@ impl IntCode {
         }
     }
 
-    pub fn set_mem(&mut self, pos: usize, val: i64) {
-        self.mem[pos] = val;
+    #[inline]
+    pub fn set_mem(&mut self, addr: usize, val: i64) {
+        if self.mem.len() <= addr {
+            self.mem.resize(addr + 1, 0);
+        }
+        self.mem[addr] = val;
     }
 
-    pub fn get_mem(&self, pos: usize) -> i64 {
-        self.mem[pos]
+    #[inline]
+    pub fn get_mem(&self, addr: usize) -> i64 {
+        *self.mem.get(addr).unwrap_or(&0)
     }
 
     pub fn send_input(&self, val: i64) -> anyhow::Result<()> {
@@ -138,20 +147,20 @@ impl IntCode {
                 let a = self.load_operand(mode_1, pc + 1)?;
                 let b = self.load_operand(mode_2, pc + 2)?;
                 let dst = self.load_dst_operand(mode_3, pc + 3)?;
-                self.mem[dst] = a + b;
+                self.set_mem(dst, a + b);
                 self.pc += 4;
             }
             Instruction::Mul(mode_1, mode_2, mode_3) => {
                 let a = self.load_operand(mode_1, pc + 1)?;
                 let b = self.load_operand(mode_2, pc + 2)?;
                 let dst = self.load_dst_operand(mode_3, pc + 3)?;
-                self.mem[dst] = a * b;
+                self.set_mem(dst, a * b);
                 self.pc += 4;
             }
             Instruction::Input(mode) => {
                 let dst = self.load_dst_operand(mode, pc + 1)?;
                 let input_channel = self.input.as_ref().ok_or(anyhow!("input after halt"))?;
-                self.mem[dst] = input_channel.recv()?;
+                self.set_mem(dst, input_channel.recv()?);
                 self.pc += 2;
             }
             Instruction::Output(mode) => {
@@ -182,15 +191,19 @@ impl IntCode {
                 let a = self.load_operand(mode_1, pc + 1)?;
                 let b = self.load_operand(mode_2, pc + 2)?;
                 let dst = self.load_dst_operand(mode_3, pc + 3)?;
-                self.mem[dst] = if a < b { 1 } else { 0 };
+                self.set_mem(dst, if a < b { 1 } else { 0 });
                 self.pc += 4;
             }
             Instruction::Equals(mode_1, mode_2, mode_3) => {
                 let a = self.load_operand(mode_1, pc + 1)?;
                 let b = self.load_operand(mode_2, pc + 2)?;
-                let dsdt = self.load_dst_operand(mode_3, pc + 3)?;
-                self.mem[dsdt] = if a == b { 1 } else { 0 };
+                let dst = self.load_dst_operand(mode_3, pc + 3)?;
+                self.set_mem(dst, if a == b { 1 } else { 0 });
                 self.pc += 4;
+            }
+            Instruction::AdjustRelativeBase(mode) => {
+                self.base += self.load_operand(mode, pc + 1)?;
+                self.pc += 2;
             }
             Instruction::Halt => {
                 self.input = None;
@@ -203,15 +216,17 @@ impl IntCode {
 
     fn load_operand(&self, mode: Mode, addr: usize) -> anyhow::Result<i64> {
         match mode {
-            Mode::Position => Ok(self.mem[usize::try_from(self.mem[addr])?]),
-            Mode::Immediate => Ok(self.mem[addr]),
+            Mode::Position => Ok(self.get_mem(usize::try_from(self.get_mem(addr))?)),
+            Mode::Immediate => Ok(self.get_mem(addr)),
+            Mode::Relative => Ok(self.get_mem(usize::try_from(self.base + self.get_mem(addr))?)),
         }
     }
 
     fn load_dst_operand(&self, mode: Mode, addr: usize) -> anyhow::Result<usize> {
         match mode {
-            Mode::Position => Ok(usize::try_from(self.mem[addr])?),
+            Mode::Position => Ok(usize::try_from(self.get_mem(addr))?),
             Mode::Immediate => Err(anyhow!("illegal immediate mode for dst operand")),
+            Mode::Relative => Ok(usize::try_from(self.base + self.get_mem(addr))?),
         }
     }
 }
