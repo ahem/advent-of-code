@@ -4,10 +4,10 @@ use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 pub struct IntCode {
     mem: Vec<i64>,
     pc: usize,
-    input_sender: SyncSender<i64>,
+    input_sender: Option<SyncSender<i64>>,
     input: Option<Receiver<i64>>,
     output: Option<SyncSender<i64>>,
-    output_receiver: Receiver<i64>,
+    output_receiver: Option<Receiver<i64>>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -73,10 +73,10 @@ impl IntCode {
         Self {
             mem,
             pc: 0,
-            input_sender,
+            input_sender: Some(input_sender),
             input: Some(input),
             output: Some(output),
-            output_receiver,
+            output_receiver: Some(output_receiver),
         }
     }
 
@@ -89,12 +89,19 @@ impl IntCode {
     }
 
     pub fn send_input(&self, val: i64) -> anyhow::Result<()> {
-        self.input_sender.send(val)?;
+        self.input_sender
+            .as_ref()
+            .ok_or(anyhow!("input channel lost"))?
+            .send(val)?;
         Ok(())
     }
 
     pub fn read_output(&self) -> anyhow::Result<i64> {
-        Ok(self.output_receiver.recv()?)
+        Ok(self
+            .output_receiver
+            .as_ref()
+            .ok_or(anyhow!("output channel lost"))?
+            .recv()?)
     }
 
     pub fn run(&mut self) -> anyhow::Result<()> {
@@ -102,6 +109,25 @@ impl IntCode {
             continue;
         }
         Ok(())
+    }
+
+    pub fn run_async(
+        mut self,
+    ) -> anyhow::Result<(
+        SyncSender<i64>,
+        Receiver<i64>,
+        std::thread::JoinHandle<anyhow::Result<()>>,
+    )> {
+        let input = self
+            .input_sender
+            .take()
+            .ok_or(anyhow!("lost input channel"))?;
+        let output = self
+            .output_receiver
+            .take()
+            .ok_or(anyhow!("lost output channel"))?;
+        let join_handle = std::thread::spawn(move || self.run());
+        Ok((input, output, join_handle))
     }
 
     fn step(&mut self) -> anyhow::Result<bool> {
