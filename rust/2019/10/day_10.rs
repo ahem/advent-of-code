@@ -1,7 +1,6 @@
-use itertools::Itertools;
 use std::{
     collections::HashSet,
-    io::{stdin, Read},
+    io::{Read, stdin},
     str::FromStr,
 };
 
@@ -17,6 +16,7 @@ impl Pos {
     }
 }
 
+#[derive(Clone)]
 struct AstroidField {
     grid: HashSet<Pos>,
 }
@@ -71,6 +71,40 @@ impl AstroidField {
             .max()
             .unwrap()
     }
+
+    pub fn shoot(&mut self, src: &Pos, angle: f64) -> Option<(f64, Pos)> {
+        let angle = if angle > 360.0 { angle - 360.0 } else { angle };
+
+        let target = self
+            .detected(*src)
+            .map(|p| {
+                let dx = (p.x - src.x) as f64;
+                let dy = (p.y - src.y) as f64;
+                let mut angle = f64::atan(dy / dx).to_degrees();
+                if dx < 0.0 {
+                    angle += 180.0;
+                } else if dy < 0.0 {
+                    angle += 360.0;
+                }
+
+                (angle, p)
+            })
+            .filter(|(a, _)| *a >= angle)
+            .min_by_key(|(a, _)| (a * 100000.0) as i64)
+            .map(|(a, p)| (a, p.to_owned()));
+
+        match target {
+            Some((angle, pos)) => {
+                self.grid.remove(&pos);
+                Some((angle, pos))
+            }
+            None => None,
+        }
+    }
+
+    pub fn count(&self) -> usize {
+        self.grid.len()
+    }
 }
 
 fn main() -> anyhow::Result<()> {
@@ -79,20 +113,27 @@ fn main() -> anyhow::Result<()> {
         stdin().read_to_string(&mut s)?;
         AstroidField::from_str(&s)?
     };
-    println!("Part 1: {:?}", astroid_field.find_best().0);
+
+    let (visible_cnt, best_pos) = astroid_field.find_best();
+
+    println!("Part 1: {visible_cnt} ({best_pos:?}");
+
+    let mut astroid_field = astroid_field.clone();
+
+    let mut idx = 0;
+    let mut laser_angle = 270.0; // straight up
+    while astroid_field.count() > 1 {
+        if let Some((target_angle, target)) = astroid_field.shoot(&best_pos, laser_angle) {
+            idx += 1;
+            if idx == 200 {
+                println!("Part 2: {}", target.x * 100 + target.y);
+            }
+            // println!("{idx}: {target:?} ({target_angle})");
+            laser_angle = target_angle + 0.0001;
+        } else {
+            laser_angle = 0.0;
+        }
+    }
 
     Ok(())
 }
-
-/*
-#.........
-...A......
-...B..a...
-.EDCG....a
-..F.c.b...
-.....c....
-..efd.c.gb
-.......c..
-....f...c.
-...e..d..c
-*/
